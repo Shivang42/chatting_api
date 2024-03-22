@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat client for ya</title>
+    <link rel="stylesheet" href="styles/dashboard.css">
+    <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"
+        integrity="sha384-Gr6Lu2Ajx28mzwyVR8CFkULdCU7kMlZ9UthllibdOSo6qAiN+yXNHqtgdTvFXMT4"
+        crossorigin="anonymous"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            padding: 0 0;
+            border: none;
+        }
+
+        :root {
+            --brand: #f4c829;
+            --primary: #3b2417;
+            --secondary: #c6272b;
+            --tertiary: #ffdcaf;
+        }
+
+        h1,
+        h2,
+        h3 {
+            position: absolute;
+            font-size: 3em;
+            right: 2.12em;
+            font-family: Consolas;
+            background: linear-gradient(-46deg, white 40%, #272727 41%, #272727 100%);
+            top: 0.5em;
+            color: #ddd;
+            --webkit-text-stroke: 4px white;
+            mix-blend-mode: difference;
+            border: 1rem double white;
+            padding: .2em 2em;
+        }
+
+        body {
+            display: grid;
+            background: #272727;
+            gap: 1.4rem;
+            /* background: url('https://previews.123rf.com/images/amadeus542/amadeus5421603/amadeus542160300277/53863567-moire-effect-background-design-abstract-background-pattern-black-and-white.jpg'); */
+            height: 100vh;
+            width: 100vw;
+            place-items: center;
+            grid-template-rows: max(150px, 5%) auto;
+            background-size: cover;
+            grid-template-columns: minmax(200px, 20%) auto;
+        }
+
+        #frlist {
+            grid-area: 2 / 1 / 2 / 1;
+            height: 100%;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 0px;
+            justify-content: start;
+            background: white radial-gradient(circle at 50%, rgb(51, 51, 51, 0.1) 0%, rgb(51, 51, 51, 0.4) 100%);
+            justify-content: stretch;
+            align-items: center;
+        }
+
+        #frlist>label {
+            background: rgb(39, 39, 39, 0.6);
+            font-weight: bold;
+            width: 100%;
+            outline: .6rem solid #272727;
+            padding: 1em;
+            font-family: Bahnschrift;
+            font-size: 1.3em;
+            letter-spacing: 0.2em;
+        }
+
+        #frlist>label.active {
+            background: rgb(39, 39, 39, 0.6) radial-gradient(circle at 50%, rgba(27, 27, 27, 0.3) 0%, rgba(27, 27, 27, 0.8) 100%);
+        }
+
+        #searchbar {
+            border-radius: 50%;
+            aspect-ratio: 1;
+            transition: .2s ease-in forwards;
+            height: 3.5em;
+            position: absolute;
+            right: 2.5rem;
+            top: 2em;
+            background-color: rgb(196, 39, 44, 0.6);
+            display: flex;
+            flex-direction: column;
+            align-items: center;justify-content: start;
+            transform: translate(50%, 50%);
+        }
+
+        #searchbar:hover {
+            animation: expand 0.25s 1 ease-in-out forwards;
+        }
+
+        @keyframes expand {
+            100% {
+                border-radius: .2em;
+                transform: scale(5);
+                transform-origin: top right;
+                background-color: rgb(196, 39, 44, 1);
+            }
+        }
+
+        #searchbar>span {
+            display: flex;
+            gap: 1rem;
+        }
+
+        #sresults {
+            display: flex;
+            flex-direction: column;
+            margin: 0 0;
+            align-items: stretch;
+            width: 100%;
+            height: auto;
+        }
+
+        #sresults>label {
+            font-size: 0.6rem;
+            width: 100%;
+            background: white;
+            color: #272727;
+        }
+
+        #sresults>label {
+            background: #272727;
+            color: white;
+        }
+
+        #suser {
+            filter: brightness(120%);
+            height: 2rem;
+            font-size: 1rem;
+            font-family: Consolas;
+            font-weight: bold;
+        }
+
+        #search {
+            color: white;
+            cursor: pointer;
+            transform: scale(2.75) translate(5%, 15%);
+        }
+
+        #searchbar>label {
+            border: .3em double white;
+            width: 100%;
+        }
+
+        #chatsect {
+            grid-row: 2;
+            grid-column: 2;
+            border: 1.11em double #272727;
+            border-radius: 1em;
+            transition: .2s ease-in forwards;
+            height: 100%;
+            width: 97%;
+            background: white radial-gradient(circle at 50%, rgb(51, 51, 51, 0.1) 0%, rgb(51, 51, 51, 0.4) 100%);
+            display: grid;
+            grid-row-gap: 0px;
+            grid-template-rows: auto max(80px, 5%);
+        }
+
+        .chathistory {
+            backdrop-filter: brightness(80%);
+            display: grid;overflow-y:scroll;
+        }
+
+        .chathistory blockquote {
+            display:grid;place-items: center;font-family: system-ui;
+            border-radius: 1rem;background: white;
+            border: #ddd solid .15rem;padding: 1.6rem 3rem;
+            font-size: 1.2rem;height: fit-content;width:fit-content;
+        }
+
+        .sent {
+            justify-self: left;
+            clip-path: polygon(0% 0%, 100% 0%, 100% 75%, 43% 76%, 16% 98%, 23% 76%, 0% 75%);
+        }
+        
+        .recieved {
+            justify-self: right;
+            clip-path: polygon(0% 0%, 100% 0%, 100% 75%, 75% 75%, 75% 100%, 50% 75%, 0% 75%);
+        }
+
+        #chatbox {
+            display: flex;
+            justify-content: start;
+            align-items: center;
+            margin-left: 2%;
+            /* transform: translate(10%,0%); */
+        }
+
+        fieldset>* {
+            margin: 0.3rem;
+            color: white;
+            font-size: 1em;
+            text-indent: 0.2rem;
+            text-shadow: #f2f2f2;
+            font-family: Helvetica, sans-serif;
+        }
+
+        input[type='textarea']:focus {
+            border: 2px solid white;
+        }
+
+        #chatbox input[type='textarea']:hover {
+            backdrop-filter: brightness(50%);
+            border: none;
+            transform: scale(103%);
+            mix-blend-mode: lighten;
+        }
+
+        #chatbox input[type='textarea'] {
+            transition: 0.15s ease-in;
+            width: 80%;
+            height: 80%;
+            background: transparent;
+            backdrop-filter: brightness(120%);
+            filter: brightness(120%);
+            letter-spacing: 0.2rem;
+        }
+
+        #chatbox button {
+            margin-left: .75em;
+            cursor: pointer;
+            color: white;
+            font-size: 2.3em;
+            height: 1.82em;
+            aspect-ratio: 1;
+            border-radius: 50%;
+            background: url("https://api.iconify.design/material-symbols:send.svg?color=%272727");
+            font-family: monospace;
+            background-size: 100%;
+            /* outline:1px solid black;outline-offset: .1em; */
+        }
+
+        button:hover {
+            box-shadow: inset -.1em -.1em rgb(0, 0, 0, 0.35);
+        }
+    </style>
+</head>
+
+<body>
+    <fieldset id="frlist">
+        <label for="">Nigga </label>
+        <label for="">Gigga</label>
+        <label for=""> Wigga</label>
+    </fieldset>
+    <div id="chatsect">
+        <div class='chathistory'>
+
+        </div>
+        <fieldset id="chatbox">
+            <input id="chat" type="textarea" width=15 placeholder="Enter your thoughts ....">
+            <button id="send" onclick="send()">
+            </button>
+        </fieldset>
+    </div>
+
+    <h1> Welcome, <%= uid%>
+    </h1>
+
+    <fieldset id="searchbar">
+        <svg id="search" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24">
+            <path fill="white"
+                d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5A6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5S14 7.01 14 9.5S11.99 14 9.5 14" />
+        </svg>
+    </fieldset>
+</body>
+
+<script>
+    let ls = window.localStorage;
+    let currentFriend;
+
+    if (!ls.getItem('friends')) {
+        let cache = JSON.stringify({ friends: [] });
+        window.localStorage.setItem('friends', cache);
+        console.log(cache);
+    }
+    else {
+        refresh();
+    }
+    cookieStore.addEventListener('change', (ev) => {
+        console.log(ev);
+        if (ev.deleted.find((cookie) => cookie.name == 'userid')) {
+            socket.emit('ruser', `<%= uid%>`);
+        }
+
+    });
+    // window.addEventListener('beforeunload',(ev)=>{
+    //     socket.emit("ruser",`<%= uid%>`);
+    //     ls.removeItem('friends');
+    // });
+    function pushpull() {
+        let friend = JSON.parse(ls.getItem('friends')).friends.find((cf) => currentFriend == cf.id);
+        // refresh();
+        document.querySelector(".chathistory").innerHTML = '';
+        friend.chats.forEach((chat) => {
+            let chatel = document.createElement('blockquote');
+            chatel.innerText = chat.mess;
+            chatel.className = 'message';
+            if (chat.from == `<%= uid%>`) {
+                chatel.classList.add('sent');
+            }
+            else if (chat.to == `<%= uid%>`) {
+                chatel.classList.add('recieved');
+            }
+            document.querySelector(".chathistory").appendChild(chatel);
+        });
+    }
+    function refresh() {
+        //Here you get the updated friends list;
+        let frlist = document.querySelector("#frlist");
+        frlist.innerHTML = '';
+        let nfr; let i = 0;
+        Array.from(JSON.parse(ls.getItem('friends')).friends).forEach((fr) => {
+            nfr = document.createElement('label');
+            nfr.addEventListener('click', (e) => {
+                //To be done with react
+                setCurrentFriend(fr.id.toString());
+                // pushpull();
+            });
+            nfr.innerText = fr.id.toString();
+            frlist.appendChild(nfr);
+            if ((i++) == 0) {
+                setCurrentFriend(fr.id.toString());
+            }
+        });
+    };
+    function setCurrentFriend(id) {
+        currentFriend = id;
+        Array.from(document.querySelector('#frlist').children).forEach((fr) => {
+            if (fr.innerText == id) {
+                fr.className = 'active';
+            }
+            else {
+                fr.classList.remove('active');
+            }
+        });
+        pushpull();
+    }
+    const socket = io();
+    let chat = document.querySelector("#chat");
+    const send = () => {
+        let message = {
+            from: `<%= uid%>`,
+            to: currentFriend,
+            mess: chat.value
+        };
+        socket.emit('chatmess', JSON.stringify(message));
+    }
+    document.querySelector('#searchbar').addEventListener('mouseenter', (e) => {
+        let sbar = e.target;
+        document.querySelector('#searchbar').classList.add('griddy');
+        document.querySelector('#searchbar').innerHTML = `
+        <span>
+            <input type="text" name="searchuser" id="suser">
+            <svg id="search" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="white" d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5A6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5S14 7.01 14 9.5S11.99 14 9.5 14"/></svg>
+        </span>
+        <fieldset id="sresults">
+            
+        </fieldset>
+        `;
+        document.querySelector('#searchbar span').style['transform'] = 'scale(0.2)';
+        let search = document.querySelector("#suser");
+        search.addEventListener('input', async (e) => {
+            let ress = sbar.querySelector('#sresults');
+            ress.innerText = '';
+            if (e.target.value == '') {
+                return;
+            }
+            let ssterm = e.target.value;
+            let resp = await fetch(`/finduser?sterm=${ssterm}`);
+            let jsonbody = await resp.json();
+            if (jsonbody.status == 'success') {
+                jsonbody.matches.forEach((match) => {
+                    let result = document.createElement('label');
+                    result.innerText = match;
+                    result.onclick = (ee) => {
+                        addFriend(ee.target.innerText);
+                    };
+                    ress.appendChild(result);
+                });
+            }
+        });
+    });
+    document.querySelector('#searchbar').addEventListener('mouseleave', (e) => {
+        document.querySelector('#searchbar').classList.remove('griddy');
+        e.target.innerHTML = `
+        <svg id="search" xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24"><path fill="white" d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5A6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5S14 7.01 14 9.5S11.99 14 9.5 14"/></svg>
+        `;
+        console.log(e.target);
+    });
+    socket.on('servechat', (cmess) => {
+        console.log(cmess);
+        let message = JSON.parse(cmess);
+        let friends = JSON.parse(ls.getItem('friends')).friends;
+        if (message.to == `<%= uid%>`) {
+            let sender = friends.find((e) => { return e.id == message.from; })
+            if (!sender) {
+                friends.push({
+                    id: message.from,
+                    chats: [message]
+                });
+                refresh();
+            }
+            else {
+                sender.chats.push(message);
+            }
+            console.log(friends);
+            let ff = JSON.parse(ls.getItem('friends'));
+            ff.friends = friends;
+            ls.setItem('friends', JSON.stringify(ff));
+            setCurrentFriend(message.from);
+        }
+        else if (message.from == `<%= uid%>`) {
+            let sender = friends.find((e) => { return e.id == message.to; })
+            sender.chats.push(message);
+            let ff = JSON.parse(ls.getItem('friends'));
+            ff.friends = friends;
+            ls.setItem('friends', JSON.stringify(ff));
+            setCurrentFriend(message.to);
+        }
+        pushpull();
+    });
+    function addFriend(msg) {
+        let nu = JSON.parse(ls.getItem('friends')); console.log(nu);
+        let frfr = nu.friends.find((ffr) => ffr.id == msg);
+        if (!frfr && msg != `<%= uid%>`) {
+            nu.friends.push({ id: msg, chats: [] });
+            ls.setItem('friends', JSON.stringify(nu));
+        }
+        refresh();
+        window.location.reload();
+    }
+
+</script>
+
+</html>
